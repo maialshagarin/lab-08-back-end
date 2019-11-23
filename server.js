@@ -28,9 +28,24 @@ getlocation(req.query.data)
   };
 // ///// weather handler ////////
   function weatherHanddler(req,res) {
-    getWeather(req.query.data)
-       .then (weatherData => res.status(200).json(weatherData) );
+      databaseData(req.query.data) /////// check if data exists in data base if not it will go throw Api
+      .then(location=>{
+          if (location){
+              res.send(location);
+          }
+          else{
+            getlocation(req.query.data)
+            .then(location =>{
+                res.send(location)
+            })
+          }
+      })
+    // getWeather(req.query.data)
+    //    .then (weatherData => res.status(200).json(weatherData) );
    };
+    let databaseData = (location) => {
+        let SQL = 'insert into location '
+    }
 // ///// event handler /////////////// 
    function eventHanddler(req,res) {
     getEventINFO(req.query.data)
@@ -44,6 +59,23 @@ getlocation(req.query.data)
           return new Location (city , data.body)
       })
   };
+//   /////////////////////////
+// server.get('/add', (request, response) => {
+//     if 
+//     let searchQuery = request.query.city;
+//     let formattedQuery = request.query.formatted_address;
+//     let theLatitude = request.query.lat;
+//     let thelongitude = request.query.lng;
+
+
+//     let SQL = 'INSERT INTO  (search_query, formatted_query,latitude,longitude) VALUES ($1, $2, $3,$4) RETURNING *';
+//     let safeValues = [searchQuery, formattedQuery,theLatitude,thelongitude];
+//     client.query(SQL, safeValues)
+//       .then( results => {
+//         response.status(200).json(results);
+//       })
+//       .catch( error => errorHandler(error) );
+//   });
   // /////  get the data from API for weather /////
   function getWeather (query) {
     const url = `https://api.darksky.net/forecast/${process.env.DARKSKY_API_KEY}/${query.latitude},${query.longitude}`;
