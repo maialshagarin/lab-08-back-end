@@ -4,10 +4,10 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const superagent = require ('superagent')
+const superagent = require('superagent')
 
 const PORT = process.env.PORT;
-const pg = require ('pg');
+const pg = require('pg');
 const server = express();
 
 server.use(cors());
@@ -17,125 +17,124 @@ client.on('error', err => console.error(err));
 
 // ////// call the handler function 
 
-server.get('/location',locationHandler);
+server.get('/location', locationHandler);
 server.get('/weather', weatherHanddler);
 server.get('/events', eventHanddler); ////// here i have a problem and gorob help me to solve it //////
 
 // /////// location handler //////
-  function locationHandler(req,res){
-getlocation(req.query.data)
-.then(locationData => res.status(200).json(locationData));
-  };
+function locationHandler(req, res) {
+  const city = req.query.data;
+  getlocation(city)
+    // .then(locationData => res.status(200).json(locationData));
+    .then(data => sendJson(data, res))
+    .catch((error) => errorHandler(error, req, res));
+};
+
 // ///// weather handler ////////
-  function weatherHanddler(req,res) {
-      databaseData(req.query.data) /////// check if data exists in data base if not it will go throw Api
-      .then(location=>{
-          if (location){
-              res.send(location);
-          }
-          else{
-            getlocation(req.query.data)
-            .then(location =>{
-                res.send(location)
-            })
-          }
-      })
-    // getWeather(req.query.data)
-    //    .then (weatherData => res.status(200).json(weatherData) );
-   };
-    let databaseData = (location) => {
-        let SQL = 'insert into location '
-    }
+function weatherHanddler(req, res) {
+
+  getWeather(req.query.data)
+    .then(weatherData => res.status(200).json(weatherData));
+};
+
+
 // ///// event handler /////////////// 
-   function eventHanddler(req,res) {
-    getEventINFO(req.query.data)
-       .then (eventData => res.status(200).json(eventData) );
-   };
+function eventHanddler(req, res) {
+  getEventINFO(req.query.data)
+    .then(eventData => res.status(200).json(eventData));
+};
 // ///// get the data from API for location /////
-  function getlocation (city){
-      const url =`https://maps.googleapis.com/maps/api/geocode/json?address=${city}&key=${process.env.GEOCODE_API_KEY}`
-      return superagent.get(url)
-      .then( data =>{
-          return new Location (city , data.body)
-      })
-  };
-//   /////////////////////////
-// server.get('/add', (request, response) => {
-//     if 
-//     let searchQuery = request.query.city;
-//     let formattedQuery = request.query.formatted_address;
-//     let theLatitude = request.query.lat;
-//     let thelongitude = request.query.lng;
+function getlocation(city) {
+  let SQL = 'select * FROM location WHERE search_query = $1 ';
+  let values = [city];
+  return client.query(SQL, values)
+    .then(results => {
+      if (results.rowCount) { return results.rows[0]; }
+      else {
+        const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${city}&key=${process.env.GEOCODE_API_KEY}`;
+        // let SQL = 'INSERT INTO location (search_query, formatted_query, latitude, longitude) VALUES ($1, $2, $3, $4) RETURNING *';
 
+        return superagent.get(url)
+          .then(data => cacheLocation(city, data.body));
+      }
+      // return new Location (city , data.body)
+    });
+};
+let cache = {};
+function cacheLocation(city, data) {
+  const location = new Location(data.results[0]);
+  let SQL = 'INSERT INTO location (search_query, formatted_query, latitude, longitude) VALUES ($1, $2, $3, $4) RETURNING *';
+  let values = [city, location.formatted_query, location.latitude, location.longitude];
+  return client.query(SQL, values)
+    .then(results => {
+      const savedLocation = results.rows[0];
+      cache[city] = savedLocation;
+      return savedLocation;
+    });
+}
 
-//     let SQL = 'INSERT INTO  (search_query, formatted_query,latitude,longitude) VALUES ($1, $2, $3,$4) RETURNING *';
-//     let safeValues = [searchQuery, formattedQuery,theLatitude,thelongitude];
-//     client.query(SQL, safeValues)
-//       .then( results => {
-//         response.status(200).json(results);
-//       })
-//       .catch( error => errorHandler(error) );
-//   });
-  // /////  get the data from API for weather /////
-  function getWeather (query) {
-    const url = `https://api.darksky.net/forecast/${process.env.DARKSKY_API_KEY}/${query.latitude},${query.longitude}`;
-    return superagent.get(url)
-    .then( data => {
+// /////  get the data from API for weather /////
+function getWeather(query) {
+  const url = `https://api.darksky.net/forecast/${process.env.DARKSKY_API_KEY}/${query.latitude},${query.longitude}`;
+  return superagent.get(url)
+    .then(data => {
       let weather = data.body;
-      return weather.daily.data.map( (day) => {
+      return weather.daily.data.map((day) => {
         return new Weather(day);
       });
     });
-  };
-  // /////  get the data from API for weather /////
-  function getEventINFO (query) {
-    const url = `http://api.eventful.com/json/events/search?app_key=${process.env.EVENTBRITE_API_KEY}&location=${query.formatted_query}`;
-    return superagent.get(url)
-    .then( data => {
+};
+// /////  get the data from API for weather /////
+function getEventINFO(query) {
+  const url = `http://api.eventful.com/json/events/search?app_key=${process.env.EVENTBRITE_API_KEY}&location=${query.formatted_query}`;
+  return superagent.get(url)
+    .then(data => {
       let eventl = JSON.parse(data.text);
-      return eventl.events.event.map( (day) => {
+      return eventl.events.event.map((day) => {
         return new Event(day);
       });
     });
-  };
-  
-  // ////// the constactour function of location to organize data ////////
-  function Location( city ,data ) {
-      this.search_query = city;
-      this.formatted_query = data.results[0].formatted_address;
-      this.latitude = data.results[0].geometry.location.lat;
-    this.longitude = data.results[0].geometry.location.lng;
+};
+
+// ////// the constactour function of location to organize data ////////
+function Location(city, data) {
+  // this.search_query = city;
+  this.formatted_query = data.results[0].formatted_address;
+  this.latitude = data.results[0].geometry.location.lat;
+  this.longitude = data.results[0].geometry.location.lng;
 }
 
-  // ////// the constactour function of weather to organize data ////////
-  
-  function Weather( day ) {
+// ////// the constactour function of weather to organize data ////////
 
-      this.forecast = day.summary;
-      this.time = new Date(day.time * 1000).toDateString();
-          
-        }
-          // ////// the constactour function of Event to organize data ////////
+function Weather(day) {
 
-          function Event (day){
-              this.link = day.url ;
-              this.name = day.title ;
-              this.event_date = day.start_time ;
-              this.summary = day.description 
+  this.forecast = day.summary;
+  this.time = new Date(day.time * 1000).toDateString();
 
-          }
-          // ////// error 
-         
-        server.use('*', (req,res) => {
-            res.status(404).send('?????????');
-          });
+}
+// ////// the constactour function of Event to organize data ////////
 
-        server.get('*',(request,Response) =>{
-            Response.status(500).send('Sorry, something went wrong');
-        });
-       
-        // ///// listen to app 
+function Event(day) {
+  this.link = day.url;
+  this.name = day.title;
+  this.event_date = day.start_time;
+  this.summary = day.description
+
+}
+// ////// error 
+
+server.use('*', (req, res) => {
+  res.status(404).send('?????????');
+});
+
+server.get('*', (request, Response) => {
+  Response.status(500).send('Sorry, something went wrong');
+});
+function errorHandler(error, req, res) {
+  res.status(500).send(error);
+}
+// ///// listen to app 
 client.connect()
-.then( () =>{       
-        server.listen(PORT, () => console.log(`App listening on ${PORT}`))
-    });
+  .then(() => {
+    server.listen(PORT, () => console.log(`App listening on ${PORT}`))
+  });
