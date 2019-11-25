@@ -22,13 +22,27 @@ server.get('/weather', weatherHanddler);
 server.get('/events', eventHanddler); ////// here i have a problem and gorob help me to solve it //////
 
 // /////// location handler //////
+// function locationHandler(req, res) {
+//   const city = req.query.data;
+//   console.log('cityyyyyyyyyyyyyyyyyyyyyyyyy' , city);
+
+//   getlocation(city)
+//     // .then(locationData => res.status(200).json(locationData));
+//     .then(data => res.status(200).json(weatherData))
+//     .catch((error) => errorHandler(error, req, res));
+// };
 function locationHandler(req, res) {
+  // getLocation(request.query.data)             // Get city input from user
+  //   .then( locationData => response.status(200).json(locationData) );            // To show up the generated data
   const city = req.query.data;
-  getlocation(city)
+  console.log('cityyyyyyyyyyyyyyyyyyyyyyyyyyyyy : ', city);
+  getLocation(city)
     // .then(locationData => res.status(200).json(locationData));
-    .then(data => sendJson(data, res))
+    .then(data => res.status(200).json(data))
     .catch((error) => errorHandler(error, req, res));
-};
+}
+
+
 
 // ///// weather handler ////////
 function weatherHanddler(req, res) {
@@ -44,12 +58,14 @@ function eventHanddler(req, res) {
     .then(eventData => res.status(200).json(eventData));
 };
 // ///// get the data from API for location /////
-function getlocation(city) {
+function getLocation(city) {
   let SQL = 'select * FROM location WHERE search_query = $1 ';
   let values = [city];
   return client.query(SQL, values)
     .then(results => {
-      if (results.rowCount) { return results.rows[0]; }
+      if (results.rowCount) {
+        return results.rows[0];
+      }
       else {
         const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${city}&key=${process.env.GEOCODE_API_KEY}`;
         // let SQL = 'INSERT INTO location (search_query, formatted_query, latitude, longitude) VALUES ($1, $2, $3, $4) RETURNING *';
@@ -121,6 +137,9 @@ function Event(day) {
   this.summary = day.description
 
 }
+// function sendJson(data, res){
+//   res.status(200).json(data);
+// }
 // ////// error 
 
 server.use('*', (req, res) => {
@@ -138,3 +157,12 @@ client.connect()
   .then(() => {
     server.listen(PORT, () => console.log(`App listening on ${PORT}`))
   });
+
+
+
+  // 'use strict';
+  // require('dotenv').config();
+
+  // const express = require('express');
+  // const cors = require('cors');
+  // const client = require
